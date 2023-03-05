@@ -6,6 +6,7 @@ import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.GenericSelectMenuInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
+import net.dv8tion.jda.api.interactions.components.LayoutComponent;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.interactions.components.selections.SelectOption;
@@ -30,6 +31,9 @@ public class EquipInfo extends ListenerAdapter {
     private final String url = "https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/equipments.json";
     String selectedValue;
     List<SelectOption> names;
+    List<List<SelectOption>> pages = new ArrayList<>();
+    List<Button> pageButtons = new ArrayList<>();
+    int pageCount;
 
     @Override
     public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
@@ -154,32 +158,35 @@ public class EquipInfo extends ListenerAdapter {
                             .build()
                     )
                 ).queue();
+        }
 
+        String buttonId = event.getComponentId();
+        if (buttonId.startsWith("page_")) {
+            pages = new ArrayList<>();
+            pageButtons = new ArrayList<>();
+            for (int i = 0; i < names.size(); i += 25) {
+                pages.add(names.subList(i, Math.min(i + 25, names.size())));
+            }
+            System.out.println(pages.size());
+            int pageNumber = Integer.parseInt(buttonId.substring(5));
+            List<SelectOption> pageNames = pages.get(pageNumber - 1);
+            //List<Button> pageButtons = new ArrayList<>();
 
-            case "page_1" -> event.editMessage(selectedValue)
-                .setComponents(
-                    ActionRow.of(
-                        Button.of(ButtonStyle.PRIMARY, "page_1", "Page 1").asDisabled(),
-                        Button.of(ButtonStyle.PRIMARY, "page_2", "Page 2"),
-                        Button.of(ButtonStyle.PRIMARY, "back", "Back")
-                    ),
-                    ActionRow.of(StringSelectMenu.create(selectedValue).addOptions(names.subList(0, names.size() / 2)).build())
-                ).queue();
+            for (int i = 1; i <= pageCount; i++) {
+                Button button = Button.of(ButtonStyle.PRIMARY, "page_" + i, "Page " + i);
+                if (i == pageNumber) {
+                    button = button.asDisabled();
+                }
+                pageButtons.add(button);
+            }
 
-            case "page_2" -> event.editMessage(selectedValue)
-                .setComponents(
-                    ActionRow.of(
-                        Button.of(ButtonStyle.PRIMARY, "page_1", "Page 1"),
-                        Button.of(ButtonStyle.PRIMARY, "page_2", "Page 2").asDisabled(),
-                        Button.of(ButtonStyle.PRIMARY, "back", "Back")
-                    ),
-                    ActionRow.of(StringSelectMenu.create(selectedValue).addOptions(names.subList(names.size() / 2, names.size())).build())
-                ).queue();
-
-            //default -> event.reply("Unknown button").setEphemeral(true).queue();
+            event.editMessage(selectedValue).setComponents(
+                ActionRow.of(pageButtons),
+                ActionRow.of(Button.of(ButtonStyle.PRIMARY, "back", "Back")),
+                ActionRow.of(StringSelectMenu.create(selectedValue).addOptions(pageNames).build())
+            ).queue();
         }
     }
-
 
     @Override
     public void onGenericSelectMenuInteraction(GenericSelectMenuInteractionEvent event) {
@@ -200,6 +207,7 @@ public class EquipInfo extends ListenerAdapter {
                 json = jsonArray.getJSONObject(i);
                 String category = json.getString("category");
                 String nationality = json.getString("nationality");
+
                 //доработать
                 JSONArray tiers = json.getJSONArray("tiers");
                 String fullRarity = null;
@@ -233,6 +241,9 @@ public class EquipInfo extends ListenerAdapter {
                         stats = tiers.getJSONObject(j).getJSONObject("stats");
                     }
                     if (Objects.equals(name, selectedEquip)) {
+                        for (SelectOption name1 : names) {
+                            System.out.println(name1.getLabel());
+                        }
                         EmbedBuilder builder = new EmbedBuilder();
                         builder.setTitle(selectedEquip)
                             .addField("Type", category, false)
@@ -298,21 +309,32 @@ public class EquipInfo extends ListenerAdapter {
                     }
                 }*/
             }
-            if (names.size() > 25) {
-                event.editMessage(selectedValue)
-                    .setComponents(
-                        ActionRow.of(
-                            Button.of(ButtonStyle.PRIMARY, "page_1", "Page 1").asDisabled(),
-                            Button.of(ButtonStyle.PRIMARY, "page_2", "Page 2"),
-                            Button.of(ButtonStyle.PRIMARY, "back", "Back")
-                        ),
-                        ActionRow.of(StringSelectMenu.create(selectedValue).addOptions(names.subList(0, names.size() / 2)).build())
-                    ).queue();
+            int pageSize = 25;
+            pages = new ArrayList<>();
+            pageButtons = new ArrayList<>();
+            pageCount = (int) Math.ceil(names.size() / (double) pageSize);
+            for (int i = 0; i < names.size(); i += pageSize) {
+                pages.add(names.subList(i, Math.min(i + pageSize, names.size())));
+            }
+            if (pages.size() > 1) {
+                for (int i = 1; i <= pageCount; i++) {
+                    Button button = Button.of(ButtonStyle.PRIMARY, "page_" + i, "Page " + i);
+                    if (i == 1) {
+                        button = button.asDisabled();
+                    }
+                    pageButtons.add(button);
+                }
+                event.editMessage(selectedValue).setComponents(
+                        ActionRow.of(pageButtons),
+                        ActionRow.of(Button.of(ButtonStyle.PRIMARY, "back", "Back")),
+                        ActionRow.of(StringSelectMenu.create(selectedValue).addOptions(pages.get(0)).build()))
+                    .queue();
             } else {
+                System.out.println(pages);
                 event.editMessage(selectedValue)
                     .setComponents(
                         ActionRow.of(Button.of(ButtonStyle.PRIMARY, "back", "Back")),
-                        ActionRow.of(StringSelectMenu.create(selectedValue).addOptions(names).build())
+                        ActionRow.of(StringSelectMenu.create(selectedValue).addOptions(pages.get(0)).build())
                     ).queue();
             }
         } catch (IOException e) {

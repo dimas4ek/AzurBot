@@ -5,9 +5,13 @@ import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
+import net.dv8tion.jda.api.interactions.components.Component;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.interactions.components.selections.SelectOption;
 import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.interactions.components.text.TextInput;
+import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
 
 import java.awt.*;
 
@@ -33,7 +37,15 @@ public class testcom extends ListenerAdapter {
                 .setFooter("Footer text");
 
             MessageEmbed embed = embedBuilder.build();
-            event.getChannel().sendMessageEmbeds(embed).addActionRow(button).addActionRow(selectMenu).queue();
+            event.getChannel().sendMessageEmbeds(embed).addComponents(
+                ActionRow.of(
+                    Button.of(ButtonStyle.PRIMARY, "1", "1"),
+                    Button.of(ButtonStyle.PRIMARY, "2", "1"),
+                    Button.of(ButtonStyle.PRIMARY, "3", "1"),
+                    Button.of(ButtonStyle.PRIMARY, "4", "1"),
+                    Button.of(ButtonStyle.PRIMARY, "5", "1")
+                )
+            ).queue();
         }
     }
 }
