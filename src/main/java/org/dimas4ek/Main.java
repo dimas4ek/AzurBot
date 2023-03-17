@@ -9,28 +9,33 @@ import org.dimas4ek.commands.*;
 
 public class Main {
 
-    private static final String TOKEN = "MTA3ODYzMjY1ODkzMTgxMDMwNA.GVKimP.XhuM2PJhGPWiX32KIyKTXpFT20B1RtbO_OMDKU";
+    private static final String TOKEN = "MTA3ODYzMjY1ODkzMTgxMDMwNA.GHCUkl.-DhVurY1WoEiUag-3Dx35IEVsrCBxpCdp1WDXs";
+    public static final String BOT_GUILD = "975381997344145448";
 
     public static void main(String[] args) {
-        JDA api = JDABuilder.createDefault(TOKEN)
-            .enableIntents(GatewayIntent.MESSAGE_CONTENT)
-            .build();
+        try {
+            JDA api = JDABuilder.createDefault(TOKEN)
+                .enableIntents(GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_EMOJIS_AND_STICKERS)
+                .build();
+            api.addEventListener(
+                new ShipInfo(),
+                new CommandList(),
+                new ChapterInfo(),
+                new EquipInfo(),
+                new testcom()
+            );
+            api.updateCommands().addCommands(
+                Commands.slash("start", "Start the bot"),
+                Commands.slash("info", "Get info about the bot"),
+                Commands.slash("ship", "Get info about a ship")
+                    .addOption(OptionType.STRING, "name", "Name of the ship", true),
+                Commands.slash("chapter", "Get info about a chapter"),
+                Commands.slash("equipment", "Get info about a equipment"),
+                Commands.slash("test", "Test command")
+            ).queue();
 
-        api.addEventListener(
-            new ShipInfo(),
-            new CommandList(),
-            new ChapterInfo(),
-            new EquipInfo(),
-            new testcom()
-        );
-        api.updateCommands().addCommands(
-            Commands.slash("start", "Start the bot"),
-            Commands.slash("info", "Get info about the bot"),
-            Commands.slash("ship", "Get info about a ship")
-                .addOption(OptionType.STRING, "name", "Name of the ship", true),
-            Commands.slash("chapter", "Get info about a chapter"),
-            Commands.slash("equipment", "Get info about a equipment"),
-            Commands.slash("test", "Test command")
-        ).queue();
+        } catch (Exception e) {
+            System.out.println("\u001B[31mERROR: " + e.getMessage() + "\u001B[0m");
+        }
     }
 }
