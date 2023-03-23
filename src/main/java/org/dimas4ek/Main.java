@@ -9,7 +9,7 @@ import org.dimas4ek.commands.*;
 
 public class Main {
 
-    private static final String TOKEN = "MTA3ODYzMjY1ODkzMTgxMDMwNA.GVKimP.XhuM2PJhGPWiX32KIyKTXpFT20B1RtbO_OMDKU";
+    private static final String TOKEN = "***";
 
     public static void main(String[] args) {
         JDA api = JDABuilder.createDefault(TOKEN)
