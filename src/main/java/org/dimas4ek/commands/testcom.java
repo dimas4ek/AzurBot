@@ -1,39 +1,57 @@
 package org.dimas4ek.commands;
 
-import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.selections.SelectOption;
-import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
-
-import java.awt.*;
 
 public class testcom extends ListenerAdapter {
+    //static Map<String, Emoji> emojiCache = new HashMap<>();
+
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-        if (event.getFullCommandName().equals("test")) {
-            Button button = Button.primary("button-id", "Click me");
-
-            StringSelectMenu selectMenu = StringSelectMenu.create("menu-id")
-                .setPlaceholder("Select an option")
-                .addOptions(
-                    SelectOption.of("Option 1", "option-1"),
-                    SelectOption.of("Option 2", "option-2"),
-                    SelectOption.of("Option 3", "option-3")
-                ).build();
+        if (event.getName().equals("test")) {
 
 
-            EmbedBuilder embedBuilder = new EmbedBuilder()
-                .setTitle("Example Embed")
-                .setDescription("This is an example embed with a button and a select menu")
-                .setColor(Color.BLUE)
-                .setFooter("Footer text");
+            /*User bot = event.getJDA().getSelfUser();
+            List<RichCustomEmoji> emojisList = event.getGuild().getEmojis();
+            event.getGuild().retrieveEmojis().complete();
+            if (!emojisList.isEmpty()) {
+                for (RichCustomEmoji emoji : emojisList) {
+                    if (emoji.getOwner() == bot) {
+                        emoji.delete().queue();
+                    }
+                }
+            }
 
-            MessageEmbed embed = embedBuilder.build();
-            event.getChannel().sendMessageEmbeds(embed).addActionRow(button).addActionRow(selectMenu).queue();
+            try {
+                Emoji emoji = createEmojiFromUrl(event.getGuild(), "https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/images/skills/106/full_firepower.png", "asddd");
+                Emoji emoji2 = createEmojiFromUrl(event.getGuild(), "https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/images/skills/106/giant_hunterkai.png", "asdeqweqe");
+                event.reply(emoji.getFormatted() + " " + emoji2.getFormatted()).queue();
+
+                System.out.println(emojiCache.size());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }*/
+
         }
     }
+
+    /*public static Emoji createEmojiFromUrl(Guild guild, String url, String name) throws IOException {
+        if (emojiCache.containsKey(url)) {
+            return emojiCache.get(url);
+        } else {
+            BufferedImage image = ImageIO.read(new URL(url));
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", baos);
+            byte[] imageData = baos.toByteArray();
+            Emoji emoji = guild.createEmoji(name, Icon.from(imageData), (Role) null).complete();
+            emojiCache.put(url, emoji);
+
+            return emoji;
+        }
+    }
+
+    private String getEmojiById(String id, InteractionHook hook) {
+        return hook.getJDA().getEmojiById(id).getFormatted();
+    }*/
 }
