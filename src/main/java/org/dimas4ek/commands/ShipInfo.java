@@ -4,6 +4,7 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Icon;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -11,6 +12,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
+import net.dv8tion.jda.api.utils.FileUpload;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -19,17 +21,20 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.util.List;
 import java.util.*;
 
 public class ShipInfo extends ListenerAdapter {
-
     String name;
     static Map<String, Emoji> emojiCache = new HashMap<>();
-
+    
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getFullCommandName().equals("ship")) {
@@ -37,12 +42,12 @@ public class ShipInfo extends ListenerAdapter {
             try {
                 JSONArray jsonArray = getJsonArrayFromUrl();
                 JSONObject json = findJsonWithName(jsonArray, name);
-
+                
                 if (json == null) {
                     event.reply("Could not find ship with name " + name).setEphemeral(true).queue();
                     return;
                 }
-
+                
                 event.deferReply().queue();
                 loadNormal(json.getJSONObject("names").getString("en"), json, json.getJSONObject("names"), event.getHook());
             } catch (IOException | JSONException e) {
@@ -51,7 +56,7 @@ public class ShipInfo extends ListenerAdapter {
             }
         }
     }
-
+    
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
         try {
@@ -59,7 +64,7 @@ public class ShipInfo extends ListenerAdapter {
                 case "normal" -> {
                     JSONArray jsonArray = getJsonArrayFromUrl();
                     JSONObject json = findJsonWithName(jsonArray, name);
-
+                    
                     if (json == null) {
                         event.reply("Could not find ship").setEphemeral(true).queue();
                         return;
@@ -71,13 +76,12 @@ public class ShipInfo extends ListenerAdapter {
                 case "retrofit" -> {
                     JSONArray jsonArray = getJsonArrayFromUrl();
                     JSONObject json = findJsonWithName(jsonArray, name);
-
+                    
                     if (json == null) {
                         event.reply("Could not find ship").setEphemeral(true).queue();
                         return;
                     }
                     event.getMessage().delete().queue();
-                    event.deferReply().queue();
                     loadRetrofit(json.getJSONObject("names").getString("en") + " Retrofit", json, json.getJSONObject("names"), event.getHook());
                 }
             }
@@ -86,57 +90,81 @@ public class ShipInfo extends ListenerAdapter {
             System.out.println("Error" + e.getMessage());
         }
     }
-
+    
     private JSONArray getJsonArrayFromUrl() throws IOException, JSONException {
         OkHttpClient client = new OkHttpClient();
         String url = "https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/ships.json";
         Request request = new Request.Builder()
             .url(url)
             .build();
-
+        
         try (Response response = client.newCall(request).execute()) {
             String jsonString = Objects.requireNonNull(response.body()).string();
             return new JSONArray(jsonString);
         }
     }
-
+    
     private JSONObject findJsonWithName(JSONArray jsonArray, String name) throws JSONException {
         for (int i = 0; i < jsonArray.length(); i++) {
             JSONObject json = jsonArray.getJSONObject(i);
             String enName = json.getJSONObject("names").getString("en");
-
+            
             if (enName.equals(name)) {
                 return json;
             }
         }
-
+        
         return null;
     }
-
+    
     public void loadRetrofit(String en, JSONObject json, JSONObject names, InteractionHook hook) {
         EmbedBuilder builder = createBuilder(en, json, names, hook);
-
+        
         List<Button> buttons = new ArrayList<>();
         buttons.add(Button.of(ButtonStyle.PRIMARY, "normal", "Normal"));
-
-
-        hook.sendMessageEmbeds(
-            builder
-                .setThumbnail(json.getJSONArray("skins").getJSONObject(1).getString("chibi"))
-                .setImage(json.getJSONArray("skins").getJSONObject(1).getString("image"))
-                .build()
-        ).setActionRow(buttons).queue();
+        
+        sendRetrofit(json, hook, builder, buttons);
     }
-
-
+    
     public void loadNormal(String en, JSONObject json, JSONObject names, InteractionHook hook) {
         EmbedBuilder builder = createBuilder(en, json, names, hook);
-
+        
         List<Button> buttons = new ArrayList<>();
         if (json.has("retrofit")) {
             buttons.add(Button.of(ButtonStyle.PRIMARY, "retrofit", "Retrofit"));
         }
-
+        
+        sendNormal(json, hook, builder, buttons);
+    }
+    
+    private void sendRetrofit(JSONObject json, InteractionHook hook, EmbedBuilder builder, List<Button> buttons) {
+        File tempFile = null;
+        try {
+            BufferedImage resultImage = resizeImage(json);
+            
+            tempFile = createTempFile(resultImage);
+            
+            MessageChannel channel = hook.getInteraction().getMessageChannel();
+            
+            channel.sendFiles(FileUpload.fromData(tempFile, "retrofit.png"))
+                .setEmbeds(
+                    builder
+                        .setThumbnail(json.getJSONArray("skins").getJSONObject(1).getString("chibi"))
+                        .setImage("attachment://retrofit.png")
+                        .build()
+                )
+                .setActionRow(buttons)
+                .queue();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (tempFile != null && tempFile.exists()) {
+                tempFile.delete();
+            }
+        }
+    }
+    
+    private static void sendNormal(JSONObject json, InteractionHook hook, EmbedBuilder builder, List<Button> buttons) {
         if (!buttons.isEmpty()) {
             hook.sendMessageEmbeds(
                 builder
@@ -153,22 +181,25 @@ public class ShipInfo extends ListenerAdapter {
             ).queue();
         }
     }
-
+    
     private EmbedBuilder createBuilder(String en, JSONObject json, JSONObject names, InteractionHook hook) {
         EmbedBuilder builder = new EmbedBuilder();
         builder.setTitle(en);
         builder.addField("Name", names.getString("code"), true);
         builder.addField("Class", json.getString("class"), true);
         builder.addField("Nationality", json.getString("nationality"), true);
-        builder.addField("Classification", Objects.requireNonNull(hook.getJDA().getEmojiById("1084533740421791836")).getFormatted() + " " + json.getString("hullType"), false);
-
+        builder.addField("Classification",
+                         Objects.requireNonNull(hook.getJDA().getEmojiById("1084533740421791836")).getFormatted() + " " + json.getString("hullType"),
+                         false
+        );
+        
         StringBuilder stars = new StringBuilder();
         stars.append("★".repeat(Math.max(0, json.getInt("stars"))));
         if (stars.length() != 6) {
             stars.append("☆");
         }
         builder.addField("Rarity", json.getString("rarity") + " " + stars, false);
-
+        
         JSONArray slots = json.getJSONArray("slots");
         /*String statsBuilder = "```\n" +
             String.format("%s\t\t%s\t\t%s\n", "Slot", "Efficiency", "Equippable") +
@@ -177,16 +208,22 @@ public class ShipInfo extends ListenerAdapter {
             String.format("%s\t\t%s\t\t%s\n", "3", getEfficiency(slots, 3), slots.getJSONObject(2).getString("type")) +
             String.format("%s\t\t%s\t\t%s\n", "Augment", "N/A", getAugment(json.getString("hullType"))) +
             "```";*/
-
+        
         //builder.addField("Gear", statsBuilder, false);
-
+        
         //builder.addField("Gear\nSlot", String.join("\n", "1", "2", "3", "Augment"), true);
         //builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE + "\nEfficiency", String.join("\n", getEfficiency(slots, 1), getEfficiency(slots, 2), getEfficiency(slots, 3), "N/A"), true);
         //builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE + "\nEquippable", String.join("\n", getEquipabble(slots, 1), getEquipabble(slots, 2), getEquipabble(slots, 3), getAugment(json.getString("hullType"))), true);
-
+        
         builder.addField("Gear", String.join("\n", "**Slot**", "1", "2", "3", "Augment"), true);
-        builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE, String.join("\n", "**Efficiency**", getEfficiency(slots, 1), getEfficiency(slots, 2), getEfficiency(slots, 3), "N/A"), true);
-        builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE, String.join("\n", "**Equippable**", getEquippable(slots, 1), getEquippable(slots, 2), getEquippable(slots, 3), getAugment(json.getString("hullType"))), true);
+        builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE,
+                         String.join("\n", "**Efficiency**", getEfficiency(slots, 1), getEfficiency(slots, 2), getEfficiency(slots, 3), "N/A"), true
+        );
+        builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE,
+                         String.join("\n", "**Equippable**", getEquippable(slots, 1), getEquippable(slots, 2), getEquippable(slots, 3),
+                                     getAugment(json.getString("hullType"))
+                         ), true
+        );
 
         /*List<String> availableIn = new ArrayList<>(List.of("light", "heavy", "aviation", "limited", "exchange"));
         List<String> availableInValues = new ArrayList<>();
@@ -200,10 +237,10 @@ public class ShipInfo extends ListenerAdapter {
         }
         builder.addField("Construction", "Time: " + json.getJSONObject("construction").getString("constructionTime") + "\n"
             + String.join("\n", availableInValues), false);*/
-
+        
         JSONObject availableIn = json.getJSONObject("construction").getJSONObject("availableIn");
         Map<String, String> availableInValues = new HashMap<>();
-
+        
         for (String s : availableIn.keySet()) {
             if (availableIn.opt(s) instanceof String) {
                 availableInValues.put(s, s.substring(0, 1).toUpperCase() + s.substring(1) + ": " + availableIn.getString(s));
@@ -211,11 +248,11 @@ public class ShipInfo extends ListenerAdapter {
                 availableInValues.put(s, s.substring(0, 1).toUpperCase() + s.substring(1) + ": ✓");
             }
         }
-
+        
         StringJoiner sj = new StringJoiner("\n");
         availableInValues.forEach((key, value) -> sj.add(value));
         builder.addField("Construction", json.getJSONObject("construction").optString("constructionTime") + "\n" + sj, false);
-
+        
         //работает некорректно
         /*User bot = hook.getJDA().getSelfUser();
         List<RichCustomEmoji> emojisList = hook.getJDA().getEmojis();
@@ -246,13 +283,13 @@ public class ShipInfo extends ListenerAdapter {
         for (int i = 0; i < skillsArray.length(); i++) {
             JSONObject skill = skillsArray.getJSONObject(i);
             skills.add("**" + skill.getJSONObject("names").getString("en") + "**\n" +
-                skill.getString("description"));
+                           skill.getString("description"));
         }
         builder.addField("Skills", String.join("\n", skills), false);
-
+        
         return builder;
     }
-
+    
     private String getAugment(String hullType) {
         return switch (hullType) {
             case "Destroyer" -> "Hammer, Dual Swords";
@@ -266,27 +303,48 @@ public class ShipInfo extends ListenerAdapter {
             default -> null;
         };
     }
-
+    
     private String getEfficiency(JSONArray slots, int slot) {
         if (slots.getJSONObject(slot - 1).has("kaiEfficiency"))
-            return slots.getJSONObject(slot - 1).getInt("minEfficiency") + " → " + slots.getJSONObject(slot - 1).getInt("maxEfficiency") + " → " + slots.getJSONObject(slot - 1).getInt("kaiEfficiency");
+            return slots.getJSONObject(slot - 1).getInt("minEfficiency") + " → " + slots.getJSONObject(slot - 1).getInt(
+                "maxEfficiency") + " → " + slots.getJSONObject(slot - 1).getInt("kaiEfficiency");
         else
             return slots.getJSONObject(slot - 1).getInt("minEfficiency") + " → " + slots.getJSONObject(slot - 1).getInt("maxEfficiency");
     }
-
+    
     private String getEquippable(JSONArray slots, int slot) {
         return slots.getJSONObject(slot - 1).getString("type");
     }
-
+    
     public static Emoji createEmojiFromUrl(Guild guild, String url, String name) throws IOException {
         BufferedImage image = ImageIO.read(new URL(url));
-
+        
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(image, "png", baos);
         byte[] imageData = baos.toByteArray();
         Emoji emoji = guild.createEmoji(name, Icon.from(imageData), (Role) null).complete();
         emojiCache.put(url, emoji);
-
+        
         return emoji;
+    }
+    
+    private BufferedImage resizeImage(JSONObject json) throws IOException {
+        InputStream file = new URL(json.getJSONArray("skins").getJSONObject(1).getString("image")).openStream();
+        BufferedImage originalImage = ImageIO.read(file);
+        
+        Image resizedImage = originalImage.getScaledInstance(250, 250, Image.SCALE_SMOOTH);
+        
+        BufferedImage resultImage = new BufferedImage(250, 250, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = resultImage.createGraphics();
+        g2d.drawImage(resizedImage, 0, 0, null);
+        g2d.dispose();
+        
+        return resultImage;
+    }
+    
+    private File createTempFile(BufferedImage image) throws IOException {
+        File tempFile = File.createTempFile("temp", ".png");
+        ImageIO.write(image, "png", tempFile);
+        return tempFile;
     }
 }

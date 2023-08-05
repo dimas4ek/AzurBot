@@ -1,7 +1,14 @@
 package org.dimas4ek.commands;
 
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.utils.FileUpload;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 
 public class testcom extends ListenerAdapter {
     //static Map<String, Emoji> emojiCache = new HashMap<>();
@@ -9,6 +16,31 @@ public class testcom extends ListenerAdapter {
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getName().equals("test")) {
+            MessageChannel channel = event.getChannel(); // = reference of a MessageChannel
+            EmbedBuilder embed = new EmbedBuilder();
+            InputStream file = null;
+            try {
+                file = new URL("https://http.cat/500").openStream();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            embed.setImage("attachment://cat.png") // we specify this in sendFile as "cat.png"
+                .setDescription("This is a cute cat :3");
+            channel.sendFiles(FileUpload.fromData(file, "cat.png")).setEmbeds(embed.build()).queue();
+            
+            /*Guild guild = event.getGuild();
+            TextChannel textChannel = guild.getTextChannelById("976000224239706152");
+            Message message = textChannel.retrieveMessageById("1137343905105457252").complete();
+            
+            File file = new File("output1.png");
+            
+            System.out.println(message.getContentRaw());*/
+            
+            /*System.out.println(message.getAttachments().get(0).getFileName());
+            System.out.println(message.getAttachments().get(0).getProxy().downloadToFile(file, 300, 300).complete(file));
+            System.out.println(message.getAttachments().get(0).getUrl());
+            
+            event.getChannel().sendFiles(FileUpload.fromData(new File("output1.png"))).queue();*/
 
 
             /*User bot = event.getJDA().getSelfUser();
