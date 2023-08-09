@@ -13,12 +13,9 @@ import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.utils.FileUpload;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+import org.dimas4ek.entity.Ship;
+import org.dimas4ek.utils.JsonUtils;
+import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -39,108 +36,117 @@ public class ShipInfo extends ListenerAdapter {
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getFullCommandName().equals("ship")) {
             name = Objects.requireNonNull(event.getOption("name")).getAsString();
-            try {
-                JSONArray jsonArray = getJsonArrayFromUrl();
-                JSONObject json = findJsonWithName(jsonArray, name);
-                
-                if (json == null) {
-                    event.reply("Could not find ship with name " + name).setEphemeral(true).queue();
-                    return;
-                }
-                
-                event.deferReply().queue();
-                loadNormal(json.getJSONObject("names").getString("en"), json, json.getJSONObject("names"), event.getHook());
-            } catch (IOException | JSONException e) {
-                //event.reply("Error: " + e.getMessage()).setEphemeral(true).queue();
-                System.out.println("Error: " + e.getMessage());
+            
+            Ship ship = findShipWithName(JsonUtils.getShipData(), name);
+            
+            if (ship == null) {
+                event.reply("Could not find ship with name " + name).setEphemeral(true).queue();
+                return;
             }
+            
+            event.deferReply().queue();
+            loadNormal(ship, event.getHook());
         }
     }
     
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
-        try {
-            switch (event.getComponentId()) {
-                case "normal" -> {
-                    JSONArray jsonArray = getJsonArrayFromUrl();
-                    JSONObject json = findJsonWithName(jsonArray, name);
-                    
-                    if (json == null) {
-                        event.reply("Could not find ship").setEphemeral(true).queue();
-                        return;
-                    }
-                    event.getMessage().delete().queue();
-                    event.deferReply().queue();
-                    loadNormal(json.getJSONObject("names").getString("en"), json, json.getJSONObject("names"), event.getHook());
+        switch (event.getComponentId()) {
+            case "normal" -> {
+                Ship ship = findShipWithName(JsonUtils.getShipData(), name);
+                
+                if (ship == null) {
+                    event.reply("Could not find ship").setEphemeral(true).queue();
+                    return;
                 }
-                case "retrofit" -> {
-                    JSONArray jsonArray = getJsonArrayFromUrl();
-                    JSONObject json = findJsonWithName(jsonArray, name);
-                    
-                    if (json == null) {
-                        event.reply("Could not find ship").setEphemeral(true).queue();
-                        return;
-                    }
-                    event.getMessage().delete().queue();
-                    loadRetrofit(json.getJSONObject("names").getString("en") + " Retrofit", json, json.getJSONObject("names"), event.getHook());
-                }
+                
+                event.getMessage().delete().queue();
+                event.deferReply().queue();
+                loadNormal(ship, event.getHook());
             }
-        } catch (IOException | JSONException e) {
-            //event.reply("Error: " + e.getMessage()).setEphemeral(true).queue();
-            System.out.println("Error" + e.getMessage());
-        }
-    }
-    
-    private JSONArray getJsonArrayFromUrl() throws IOException, JSONException {
-        OkHttpClient client = new OkHttpClient();
-        String url = "https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/ships.json";
-        Request request = new Request.Builder()
-            .url(url)
-            .build();
-        
-        try (Response response = client.newCall(request).execute()) {
-            String jsonString = Objects.requireNonNull(response.body()).string();
-            return new JSONArray(jsonString);
-        }
-    }
-    
-    private JSONObject findJsonWithName(JSONArray jsonArray, String name) throws JSONException {
-        for (int i = 0; i < jsonArray.length(); i++) {
-            JSONObject json = jsonArray.getJSONObject(i);
-            String enName = json.getJSONObject("names").getString("en");
-            
-            if (enName.equals(name)) {
-                return json;
+            case "retrofit" -> {
+                Ship ship = findShipWithName(JsonUtils.getShipData(), name);
+                
+                if (ship == null) {
+                    event.reply("Could not find ship").setEphemeral(true).queue();
+                    return;
+                }
+                
+                event.getMessage().delete().queue();
+                loadRetrofit(ship, event.getHook());
+            }
+            case "skills" -> {
+                Ship ship = findShipWithName(JsonUtils.getShipData(), name);
+                
+                if (ship == null) {
+                    event.reply("Could not find ship").setEphemeral(true).queue();
+                    return;
+                }
+                
+                event.getMessage().delete().queue();
+                event.deferReply().queue();
+                loadSkills(ship, event.getHook());
             }
         }
-        
-        return null;
     }
     
-    public void loadRetrofit(String en, JSONObject json, JSONObject names, InteractionHook hook) {
-        EmbedBuilder builder = createBuilder(en, json, names, hook);
+    private void loadSkills(Ship ship, InteractionHook hook) {
+        List<Ship.Skill> skills = ship.getSkills();
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle(ship.getName() + " Skills");
+        for (Ship.Skill skill : skills) {
+            builder.addField(skill.getName(), skill.getDescription(), false);
+        }
+        builder.setThumbnail(ship.getSkins().get(0).getChibiUrl());
+        builder.setImage(ship.getThumbnailUrl());
         
         List<Button> buttons = new ArrayList<>();
         buttons.add(Button.of(ButtonStyle.PRIMARY, "normal", "Normal"));
-        
-        sendRetrofit(json, hook, builder, buttons);
-    }
-    
-    public void loadNormal(String en, JSONObject json, JSONObject names, InteractionHook hook) {
-        EmbedBuilder builder = createBuilder(en, json, names, hook);
-        
-        List<Button> buttons = new ArrayList<>();
-        if (json.has("retrofit")) {
+        if (ship.isRetrofit()) {
             buttons.add(Button.of(ButtonStyle.PRIMARY, "retrofit", "Retrofit"));
         }
         
-        sendNormal(json, hook, builder, buttons);
+        hook
+            .sendMessageEmbeds(builder.build())
+            .setActionRow(buttons)
+            .queue();
     }
     
-    private void sendRetrofit(JSONObject json, InteractionHook hook, EmbedBuilder builder, List<Button> buttons) {
+    private Ship findShipWithName(Ship[] ships, String name) {
+        for (Ship ship : ships) {
+            if (ship.getName().equals(name)) {
+                return ship;
+            }
+        }
+        return null;
+    }
+    
+    public void loadRetrofit(Ship ship, InteractionHook hook) {
+        EmbedBuilder builder = createBuilder(ship, hook);
+        
+        List<Button> buttons = new ArrayList<>();
+        buttons.add(Button.of(ButtonStyle.PRIMARY, "normal", "Normal"));
+        buttons.add(Button.of(ButtonStyle.PRIMARY, "skills", "Skills"));
+        
+        sendRetrofit(ship, hook, builder, buttons);
+    }
+    
+    public void loadNormal(Ship ship, InteractionHook hook) {
+        EmbedBuilder builder = createBuilder(ship, hook);
+        
+        List<Button> buttons = new ArrayList<>();
+        if (ship.isRetrofit()) {
+            buttons.add(Button.of(ButtonStyle.PRIMARY, "retrofit", "Retrofit"));
+        }
+        buttons.add(Button.of(ButtonStyle.PRIMARY, "skills", "Skills"));
+        
+        sendNormal(ship, hook, builder, buttons);
+    }
+    
+    private void sendRetrofit(Ship ship, InteractionHook hook, EmbedBuilder builder, List<Button> buttons) {
         File tempFile = null;
         try {
-            BufferedImage resultImage = resizeImage(json);
+            BufferedImage resultImage = resizeImage(ship);
             
             tempFile = createTempFile(resultImage);
             
@@ -149,7 +155,7 @@ public class ShipInfo extends ListenerAdapter {
             channel.sendFiles(FileUpload.fromData(tempFile, "retrofit.png"))
                 .setEmbeds(
                     builder
-                        .setThumbnail(json.getJSONArray("skins").getJSONObject(1).getString("chibi"))
+                        .setThumbnail(ship.getSkins().get(1).getChibiUrl())
                         .setImage("attachment://retrofit.png")
                         .build()
                 )
@@ -164,94 +170,63 @@ public class ShipInfo extends ListenerAdapter {
         }
     }
     
-    private static void sendNormal(JSONObject json, InteractionHook hook, EmbedBuilder builder, List<Button> buttons) {
+    private static void sendNormal(Ship ship, InteractionHook hook, EmbedBuilder builder, List<Button> buttons) {
         if (!buttons.isEmpty()) {
             hook.sendMessageEmbeds(
                 builder
-                    .setThumbnail(json.getJSONArray("skins").getJSONObject(0).getString("chibi"))
-                    .setImage(json.getString("thumbnail"))
+                    .setThumbnail(ship.getSkins().get(0).getChibiUrl())
+                    .setImage(ship.getThumbnailUrl())
                     .build()
             ).setActionRow(buttons).queue();
         } else {
             hook.sendMessageEmbeds(
                 builder
-                    .setThumbnail(json.getJSONArray("skins").getJSONObject(0).getString("chibi"))
-                    .setImage(json.getString("thumbnail"))
+                    .setThumbnail(ship.getSkins().get(0).getChibiUrl())
+                    .setImage(ship.getThumbnailUrl())
                     .build()
             ).queue();
         }
     }
     
-    private EmbedBuilder createBuilder(String en, JSONObject json, JSONObject names, InteractionHook hook) {
+    private EmbedBuilder createBuilder(Ship ship, InteractionHook hook) {
         EmbedBuilder builder = new EmbedBuilder();
-        builder.setTitle(en);
-        builder.addField("Name", names.getString("code"), true);
-        builder.addField("Class", json.getString("class"), true);
-        builder.addField("Nationality", json.getString("nationality"), true);
+        if (ship.isRetrofit()) {
+            builder.setTitle(ship.getName() + " Retrofit");
+        } else {
+            builder.setTitle(ship.getName());
+        }
+        builder.addField("Name", ship.getNames().get("code"), true);
+        builder.addField("Class", ship.getShipClass(), true);
+        builder.addField("Nationality", ship.getNationality(), true);
         builder.addField("Classification",
-                         Objects.requireNonNull(hook.getJDA().getEmojiById("1084533740421791836")).getFormatted() + " " + json.getString("hullType"),
+                         getHullTypeEmoji(ship, hook) + " " + ship.getHullType(),
                          false
         );
         
         StringBuilder stars = new StringBuilder();
-        stars.append("★".repeat(Math.max(0, json.getInt("stars"))));
+        stars.append("★".repeat(Math.max(0, ship.getStars())));
         if (stars.length() != 6) {
             stars.append("☆");
         }
-        builder.addField("Rarity", json.getString("rarity") + " " + stars, false);
+        builder.addField("Rarity", ship.getRarity() + " " + stars, false);
         
-        JSONArray slots = json.getJSONArray("slots");
-        /*String statsBuilder = "```\n" +
-            String.format("%s\t\t%s\t\t%s\n", "Slot", "Efficiency", "Equippable") +
-            String.format("%s\t\t%s\t\t%s\n", "1", getEfficiency(slots, 1), slots.getJSONObject(0).getString("type")) +
-            String.format("%s\t\t%s\t\t%s\n", "2", getEfficiency(slots, 2), slots.getJSONObject(1).getString("type")) +
-            String.format("%s\t\t%s\t\t%s\n", "3", getEfficiency(slots, 3), slots.getJSONObject(2).getString("type")) +
-            String.format("%s\t\t%s\t\t%s\n", "Augment", "N/A", getAugment(json.getString("hullType"))) +
-            "```";*/
-        
-        //builder.addField("Gear", statsBuilder, false);
-        
-        //builder.addField("Gear\nSlot", String.join("\n", "1", "2", "3", "Augment"), true);
-        //builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE + "\nEfficiency", String.join("\n", getEfficiency(slots, 1), getEfficiency(slots, 2), getEfficiency(slots, 3), "N/A"), true);
-        //builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE + "\nEquippable", String.join("\n", getEquipabble(slots, 1), getEquipabble(slots, 2), getEquipabble(slots, 3), getAugment(json.getString("hullType"))), true);
-        
+        List<Ship.Slot> slots = ship.getSlots();
+
         builder.addField("Gear", String.join("\n", "**Slot**", "1", "2", "3", "Augment"), true);
         builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE,
                          String.join("\n", "**Efficiency**", getEfficiency(slots, 1), getEfficiency(slots, 2), getEfficiency(slots, 3), "N/A"), true
         );
         builder.addField(EmbedBuilder.ZERO_WIDTH_SPACE,
                          String.join("\n", "**Equippable**", getEquippable(slots, 1), getEquippable(slots, 2), getEquippable(slots, 3),
-                                     getAugment(json.getString("hullType"))
+                                     getAugment(ship.getHullType())
                          ), true
         );
-
-        /*List<String> availableIn = new ArrayList<>(List.of("light", "heavy", "aviation", "limited", "exchange"));
-        List<String> availableInValues = new ArrayList<>();
-        for (String s : availableIn) {
-            if (json.getJSONObject("construction").getJSONObject("availableIn").get(s).getClass() == String.class) {
-                availableInValues.add(s.substring(0, 1).toUpperCase() + s.substring(1) + ": " + json.getJSONObject("construction").getJSONObject("availableIn").getString(s));
-            } else if (json.getJSONObject("construction").getJSONObject("availableIn").get(s).getClass() == Boolean.class
-                && json.getJSONObject("construction").getJSONObject("availableIn").getBoolean(s)) {
-                availableInValues.add(s.substring(0, 1).toUpperCase() + s.substring(1) + ": ✓");
-            }
-        }
-        builder.addField("Construction", "Time: " + json.getJSONObject("construction").getString("constructionTime") + "\n"
-            + String.join("\n", availableInValues), false);*/
         
-        JSONObject availableIn = json.getJSONObject("construction").getJSONObject("availableIn");
-        Map<String, String> availableInValues = new HashMap<>();
-        
-        for (String s : availableIn.keySet()) {
-            if (availableIn.opt(s) instanceof String) {
-                availableInValues.put(s, s.substring(0, 1).toUpperCase() + s.substring(1) + ": " + availableIn.getString(s));
-            } else if (availableIn.opt(s) instanceof Boolean) {
-                availableInValues.put(s, s.substring(0, 1).toUpperCase() + s.substring(1) + ": ✓");
-            }
-        }
-        
-        StringJoiner sj = new StringJoiner("\n");
-        availableInValues.forEach((key, value) -> sj.add(value));
-        builder.addField("Construction", json.getJSONObject("construction").optString("constructionTime") + "\n" + sj, false);
+        StringJoiner construction = getConstruction(ship);
+        builder.addField("Construction",
+                         ship.getConstruction().getConstructionTime() + "\n" + construction,
+                         false
+        );
         
         //работает некорректно
         /*User bot = hook.getJDA().getSelfUser();
@@ -278,16 +253,58 @@ public class ShipInfo extends ListenerAdapter {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }*/
-        List<String> skills = new ArrayList<>();
-        JSONArray skillsArray = json.getJSONArray("skills");
-        for (int i = 0; i < skillsArray.length(); i++) {
-            JSONObject skill = skillsArray.getJSONObject(i);
-            skills.add("**" + skill.getJSONObject("names").getString("en") + "**\n" +
-                           skill.getString("description"));
-        }
-        builder.addField("Skills", String.join("\n", skills), false);
         
         return builder;
+    }
+    
+    @NotNull
+    private static StringJoiner getConstruction(Ship ship) {
+        Ship.Construction.Available availableIn = ship.getConstruction().getAvailableIn();
+        Map<String, String> availableInValues = new HashMap<>();
+        for (Map.Entry<String, Object> entry : availableIn.getAll().entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            
+            if (value instanceof String) {
+                availableInValues.put(key, key + ": " + value);
+            } else if (value instanceof Boolean) {
+                availableInValues.put(key, key + ": ✓");
+            }
+        }
+        
+        StringJoiner sj = new StringJoiner("\n");
+        availableInValues.forEach((key, value) -> sj.add(value));
+        return sj;
+    }
+    
+    private String getHullTypeEmoji(Ship ship, InteractionHook hook) {
+        if (ship.getRetrofitHullType() != null && ship.getRetrofitHullType().equals("DDG")) {
+            return hook.getJDA().getEmojisByName("ddg", true).get(0).getFormatted();
+        }
+        
+        String emojiName = getEmojiNameForHullType(ship.getHullType());
+        return hook.getJDA().getEmojisByName(emojiName, true).get(0).getFormatted();
+    }
+    
+    private String getEmojiNameForHullType(String hullType) {
+        return switch (hullType) {
+            case "Destroyer" -> "destroyer";
+            case "Light Cruiser" -> "lightCruiser";
+            case "Repair Ship" -> "repairShip";
+            case "Heavy Cruiser" -> "heavyCruiser";
+            case "Large Cruiser" -> "largeCruiser";
+            case "Munition Ship" -> "munitionShip";
+            case "Monitor" -> "monitor";
+            case "Battleship" -> "battleship";
+            case "Battlecruiser" -> "battleCruiser";
+            case "Aviation Battleship" -> "aviationBattleship";
+            case "Aircraft Carrier" -> "aircraftCarrier";
+            case "Light Aircraft Carrier" -> "lightAircraftCarrier";
+            case "Submarine" -> "submarine";
+            case "Submarine Carrier" -> "submarineCarrier";
+            case "Sailing Frigate" -> "sailingFrigate";
+            default -> null;
+        };
     }
     
     private String getAugment(String hullType) {
@@ -299,21 +316,21 @@ public class ShipInfo extends ListenerAdapter {
             case "Monitor" -> "Lance";
             case "Battleship", "Battlecruiser", "Aviation Battleship" -> "Bowgun, Officer's Sword";
             case "Aircraft Carrier", "Light Aircraft Carrier" -> "Scepter, Hunting Bow";
-            case "Submarine", "Aviation Submarine" -> "Kunai, Dagger";
+            case "Submarine", "Submarine Carrier" -> "Kunai, Dagger";
             default -> null;
         };
     }
     
-    private String getEfficiency(JSONArray slots, int slot) {
-        if (slots.getJSONObject(slot - 1).has("kaiEfficiency"))
-            return slots.getJSONObject(slot - 1).getInt("minEfficiency") + " → " + slots.getJSONObject(slot - 1).getInt(
-                "maxEfficiency") + " → " + slots.getJSONObject(slot - 1).getInt("kaiEfficiency");
+    private String getEfficiency(List<Ship.Slot> slots, int slot) {
+        if (slots.get(slot - 1).getKaiEfficiency() != 0)
+            return slots.get(slot - 1).getMinEfficiency() + " → " + slots.get(slot - 1).getMaxEfficiency()
+                + " → " + slots.get(slot - 1).getKaiEfficiency();
         else
-            return slots.getJSONObject(slot - 1).getInt("minEfficiency") + " → " + slots.getJSONObject(slot - 1).getInt("maxEfficiency");
+            return slots.get(slot - 1).getMinEfficiency() + " → " + slots.get(slot - 1).getMaxEfficiency();
     }
     
-    private String getEquippable(JSONArray slots, int slot) {
-        return slots.getJSONObject(slot - 1).getString("type");
+    private String getEquippable(List<Ship.Slot> slots, int slot) {
+        return slots.get(slot - 1).getType();
     }
     
     public static Emoji createEmojiFromUrl(Guild guild, String url, String name) throws IOException {
@@ -328,8 +345,8 @@ public class ShipInfo extends ListenerAdapter {
         return emoji;
     }
     
-    private BufferedImage resizeImage(JSONObject json) throws IOException {
-        InputStream file = new URL(json.getJSONArray("skins").getJSONObject(1).getString("image")).openStream();
+    private BufferedImage resizeImage(Ship ship) throws IOException {
+        InputStream file = new URL(ship.getSkins().get(1).getImageUrl()).openStream();
         BufferedImage originalImage = ImageIO.read(file);
         
         Image resizedImage = originalImage.getScaledInstance(250, 250, Image.SCALE_SMOOTH);
