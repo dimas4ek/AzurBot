@@ -1,30 +1,32 @@
 package org.dimas4ek.commands;
 
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
-import net.dv8tion.jda.internal.requests.restaction.MessageCreateActionImpl;
+import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 
 public class testcom extends ListenerAdapter {
-    //static Map<String, Emoji> emojiCache = new HashMap<>();
-
+    
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getName().equals("test")) {
-            EmbedBuilder embed = new EmbedBuilder()
-                .setTitle("Пример с кнопкой")
-                .setDescription("Это встроенное сообщение с кнопкой.");
-            
-            MessageCreateAction messageAction = new MessageCreateActionImpl(event.getChannel());
-            
-            // Добавление кнопки
-            messageAction.addActionRow(Button.primary("button_id", "Нажми меня!"));
-            Message message = messageAction.complete();
-            message.replyEmbeds(embed.build()).queue();
-            //event.reply(MessageCreateData.fromMessage(message)).queue();
+            event.reply("content1").addActionRow(Button.of(ButtonStyle.PRIMARY, "btn", "button")).queue();
         }
+    }
+    
+    @Override
+    public void onButtonInteraction(ButtonInteractionEvent event) {
+        if (event.getComponentId().equals("btn")) {
+            event.deferEdit().setEmbeds(createEmbed().build()).queue();
+        }
+    }
+    
+    private EmbedBuilder createEmbed() {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("title");
+        builder.setDescription("desc");
+        return builder;
     }
 }

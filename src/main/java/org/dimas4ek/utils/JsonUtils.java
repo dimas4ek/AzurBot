@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import org.dimas4ek.entity.Equip;
 import org.dimas4ek.entity.Ship;
 
 import java.io.IOException;
@@ -13,7 +14,12 @@ public class JsonUtils {
     public static Ship[] getShipData() {
         return getJsonData("https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/ships.json", Ship[].class);
     }
-    public static <T> T getJsonData(String url, Class<T> type) {
+    
+    public static Equip[] getEquipData() {
+        return getJsonData("https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/equipments.json", Equip[].class);
+    }
+    
+    private static <T> T getJsonData(String url, Class<T> type) {
         T result = null;
         try {
             OkHttpClient client = new OkHttpClient();

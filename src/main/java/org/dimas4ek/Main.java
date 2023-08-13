@@ -5,11 +5,14 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
-import org.dimas4ek.commands.*;
+import org.dimas4ek.commands.CommandList;
+import org.dimas4ek.commands.EquipInfo;
+import org.dimas4ek.commands.ShipInfo;
+import org.dimas4ek.commands.testcom;
 
 public class Main {
 
-    private static final String TOKEN = "MTA3ODYzMjY1ODkzMTgxMDMwNA.GvMhW4.ikTR9ZG1uU-liOTkRlK8DLmzNi7J7xr8s3XGX0";
+    private static final String TOKEN = "***";
 
     public static void main(String[] args) {
         JDA api = JDABuilder.createDefault(TOKEN)
@@ -19,7 +22,7 @@ public class Main {
         api.addEventListener(
             new ShipInfo(),
             new CommandList(),
-            new ChapterInfo(),
+            //new ChapterInfo(),
             new EquipInfo(),
             new testcom()
         );
