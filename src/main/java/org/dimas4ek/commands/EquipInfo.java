@@ -1,7 +1,10 @@
 package org.dimas4ek.commands;
 
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.GenericSelectMenuInteractionEvent;
@@ -9,28 +12,36 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.LayoutComponent;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.interactions.components.buttons.ButtonInteraction;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.interactions.components.selections.SelectMenuInteraction;
 import net.dv8tion.jda.api.interactions.components.selections.SelectOption;
 import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
 import org.dimas4ek.entity.Equip;
+import org.dimas4ek.session.MessageSession;
 import org.dimas4ek.utils.JsonUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class EquipInfo extends ListenerAdapter {
+    Map<String, MessageSession> sessionData = new HashMap<>();
+    ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    
     Collection<SelectOption> types = new ArrayList<>();
     Collection<SelectOption> nationalities = new ArrayList<>();
     Collection<SelectOption> rarities = new ArrayList<>();
     
+    Equip selectedEquip;
     String selectedValue;
     StringSelectMenu equipSelectMenu;
-    Equip selectedEquip;
     List<Button> tierButtons;
     List<LayoutComponent> components;
-    String selectedCategory;
     List<LayoutComponent> categoryComponents;
     
     List<List<SelectOption>> pages;
@@ -73,7 +84,7 @@ public class EquipInfo extends ListenerAdapter {
     
     @Override
     public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
-        if (event.getFullCommandName().equals("equipment")) {
+        if (event.getFullCommandName().equals("equip")) {
             event.reply("Choose category")
                 .addComponents(
                     ActionRow.of(
@@ -88,6 +99,15 @@ public class EquipInfo extends ListenerAdapter {
                     )
                 )
                 .queue();
+            
+            Message message = event.getInteraction().getHook().retrieveOriginal().complete();
+            MessageSession session = new MessageSession("type");
+            Guild guild = event.getJDA().getGuildById(message.getGuild().getId());
+            
+            ScheduledFuture<?> scheduledTask = createScheduleTask(message, guild);
+            
+            session.setScheduledTask(scheduledTask);
+            sessionData.put(message.getId(), session);
         }
     }
     
@@ -96,11 +116,7 @@ public class EquipInfo extends ListenerAdapter {
         if (event.getUser().isBot()) return;
         
         switch (event.getComponentId()) {
-            case "back" -> handleBackButton(event);
-            
-            case "type" -> handleCategoryButton(event, "type");
-            case "nationality" -> handleCategoryButton(event, "nationality");
-            case "rarity" -> handleCategoryButton(event, "rarity");
+            case "back", "type", "nationality", "rarity" -> handleButton(event);
             
             case "tierType1" -> handleTierButton(event, 1);
             case "tierType2" -> handleTierButton(event, 2);
@@ -118,7 +134,7 @@ public class EquipInfo extends ListenerAdapter {
         switch (event.getComponentId()) {
             case "Type", "Nationality", "Rarity" -> {
                 Set<SelectOption> options = filteredOptions(event.getComponentId(), equipData);
-                createPages(event.getInteraction(), options);
+                createPages(event, options);
             }
         }
         
@@ -226,7 +242,7 @@ public class EquipInfo extends ListenerAdapter {
                     .setComponents(
                         ActionRow.of(pageButtons),
                         ActionRow.of(pageButtons2),
-                        ActionRow.of(Button.of(ButtonStyle.PRIMARY, "back", "Back")),
+                        ActionRow.of(Button.of(ButtonStyle.DANGER, "back", "Back")),
                         ActionRow.of(equipSelectMenu)
                     )
                     .queue();
@@ -242,7 +258,7 @@ public class EquipInfo extends ListenerAdapter {
                     .setSuppressEmbeds(true)
                     .setComponents(
                         ActionRow.of(pageButtons),
-                        ActionRow.of(Button.of(ButtonStyle.PRIMARY, "back", "Back")),
+                        ActionRow.of(Button.of(ButtonStyle.DANGER, "back", "Back")),
                         ActionRow.of(equipSelectMenu)
                     )
                     .queue();
@@ -251,7 +267,7 @@ public class EquipInfo extends ListenerAdapter {
             interaction.editMessage(selectedValue)
                 .setSuppressEmbeds(true)
                 .setComponents(
-                    ActionRow.of(Button.of(ButtonStyle.PRIMARY, "back", "Back")),
+                    ActionRow.of(Button.of(ButtonStyle.DANGER, "back", "Back")),
                     ActionRow.of(equipSelectMenu)
                 )
                 .queue();
@@ -334,7 +350,7 @@ public class EquipInfo extends ListenerAdapter {
         if (tiers.size() > 1) {
             for (Equip.Tier value : tiers) {
                 int equipTier = value.getTier();
-                Button button = Button.of(ButtonStyle.PRIMARY, "tierType" + equipTier, "Type " + equipTier);
+                Button button = Button.of(ButtonStyle.SECONDARY, "tierType" + equipTier, "Type " + equipTier);
                 if (equipTier == tier) {
                     button = button.asDisabled();
                 }
@@ -350,52 +366,81 @@ public class EquipInfo extends ListenerAdapter {
             }
         }
         
-        components.add(ActionRow.of(Button.of(ButtonStyle.PRIMARY, "back", "Back")));
+        components.add(ActionRow.of(Button.of(ButtonStyle.DANGER, "back", "Back")));
         components.add(ActionRow.of(equipSelectMenu));
         
         return builder;
     }
     
-    private void handleBackButton(ButtonInteractionEvent event) {
-        selectedEquip = null;
+    private void handleButton(ButtonInteraction interaction) {
+        if (interaction.getComponentId().equals("back")) {
+            selectedEquip = null;
+        }
+        
+        updateSession(interaction);
         
         categoryComponents = new ArrayList<>();
-        createCategoryComponents(selectedCategory, categoryComponents);
+        createCategoryComponents(sessionData.get(interaction.getMessageId()).getState(), categoryComponents);
         
-        event.editMessage("")
+        interaction.editMessage("")
             .setSuppressEmbeds(true)
             .setComponents(categoryComponents)
             .queue();
     }
     
-    private void handleCategoryButton(ButtonInteractionEvent event, String category) {
-        selectedCategory = category;
+    private void handleTierButton(ButtonInteraction interaction, int tier) {
+        updateSession(interaction);
         
-        categoryComponents = new ArrayList<>();
-        createCategoryComponents(category, categoryComponents);
-        
-        event.editMessage("")
-            .setSuppressEmbeds(true)
-            .setComponents(categoryComponents)
-            .queue();
-    }
-    
-    private void handleTierButton(ButtonInteractionEvent event, int tier) {
         MessageEmbed embed = null;
         switch (tier) {
             case 1 -> embed = createEmbed(selectedEquip, 1).build();
             case 2 -> embed = createEmbed(selectedEquip, 2).build();
             case 3 -> embed = createEmbed(selectedEquip, 3).build();
         }
-        event.deferEdit()
+        interaction.deferEdit()
             .setSuppressEmbeds(false)
             .setEmbeds(embed)
             .setComponents(components)
             .queue();
     }
     
-    private void handlePageButtons(ButtonInteractionEvent event) {
-        String buttonId = event.getComponentId();
+    private void updateSession(ButtonInteraction interaction) {
+        MessageSession session = sessionData.get(interaction.getMessageId());
+        if (session != null) {
+            ScheduledFuture<?> scheduledTask = session.getScheduledTask();
+            if (scheduledTask != null) {
+                scheduledTask.cancel(false);
+            }
+            
+            Message message = interaction.getMessage();
+            Guild guild = interaction.getJDA().getGuildById(message.getGuild().getId());
+            
+            scheduledTask = createScheduleTask(message, guild);
+            
+            session.setState(interaction.getComponentId());
+            session.setScheduledTask(scheduledTask);
+        }
+        
+        sessionData.put(interaction.getMessageId(), session);
+    }
+    
+    @NotNull
+    private ScheduledFuture<?> createScheduleTask(Message message, Guild guild) {
+        return scheduler.schedule(() -> {
+            sessionData.remove(message.getId());
+            if (guild != null) {
+                TextChannel channel = guild.getTextChannelById(message.getGuildChannel().getId());
+                if (channel != null) {
+                    if (channel.retrieveMessageById(message.getId()).complete() != null) {
+                        message.delete().queue();
+                    }
+                }
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+    
+    private void handlePageButtons(ButtonInteraction interaction) {
+        String buttonId = interaction.getComponentId();
         if (buttonId.startsWith("page_")) {
             List<LayoutComponent> components = new ArrayList<>();
             if (selectedEquip != null) {
@@ -447,10 +492,10 @@ public class EquipInfo extends ListenerAdapter {
                     components.add(ActionRow.of(pageButtons));
                 }
             }
-            components.add(ActionRow.of(Button.of(ButtonStyle.PRIMARY, "back", "Back")));
+            components.add(ActionRow.of(Button.of(ButtonStyle.DANGER, "back", "Back")));
             components.add(ActionRow.of(equipSelectMenu));
             
-            event.editMessage(selectedValue)
+            interaction.editMessage(selectedValue)
                 .setSuppressEmbeds(selectedEquip == null)
                 .setComponents(components)
                 .queue();

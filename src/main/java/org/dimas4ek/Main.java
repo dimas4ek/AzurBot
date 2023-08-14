@@ -5,7 +5,7 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
-import org.dimas4ek.commands.CommandList;
+import org.dimas4ek.commands.BotInfo;
 import org.dimas4ek.commands.EquipInfo;
 import org.dimas4ek.commands.ShipInfo;
 import org.dimas4ek.commands.testcom;
@@ -21,18 +21,17 @@ public class Main {
 
         api.addEventListener(
             new ShipInfo(),
-            new CommandList(),
+            new BotInfo(),
             //new ChapterInfo(),
             new EquipInfo(),
             new testcom()
         );
         api.updateCommands().addCommands(
-            Commands.slash("start", "Start the bot"),
             Commands.slash("info", "Get info about the bot"),
             Commands.slash("ship", "Get info about a ship")
                 .addOption(OptionType.STRING, "name", "Name of the ship", true),
-            Commands.slash("chapter", "Get info about a chapter"),
-            Commands.slash("equipment", "Get info about a equipment"),
+            //Commands.slash("chapter", "Get info about a chapter"),
+            Commands.slash("equip", "Get info about a equipment"),
             Commands.slash("test", "Test command")
         ).queue();
     }
