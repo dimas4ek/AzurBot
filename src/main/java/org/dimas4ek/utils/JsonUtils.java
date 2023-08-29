@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import org.dimas4ek.entity.Chapter;
 import org.dimas4ek.entity.Equip;
 import org.dimas4ek.entity.Ship;
 
@@ -17,6 +18,10 @@ public class JsonUtils {
     
     public static Equip[] getEquipData() {
         return getJsonData("https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/equipments.json", Equip[].class);
+    }
+
+    public static Chapter[] getChapterData() {
+        return getJsonData("https://raw.githubusercontent.com/AzurAPI/azurapi-js-setup/master/chapters.json", Chapter[].class);
     }
     
     private static <T> T getJsonData(String url, Class<T> type) {
